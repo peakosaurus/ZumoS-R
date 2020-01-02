@@ -4,7 +4,7 @@
 
 #define TURNING_SPEED    150
 #define MOVEMENT_TIME    150
-#define QTR_THRESHOLD     1000  // microseconds
+#define QTR_THRESHOLD    1000  // microseconds
 
 //Serial1 communicates over XBee
 //Serial communicates over USB cable
@@ -16,6 +16,7 @@ Zumo32U4ButtonA buttonA;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
+//bool atWall = false;
 
 void setup() {
   // put your setup code here, to run once:
@@ -31,85 +32,115 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-   getInput();
+  getInput();
 }
 
-void getInput(){
-   char cmd; // for incoming serial data
-  
+void getInput() {
+  char cmd; // for incoming serial data
+
   // send data only when you receive data:
   while (Serial1.available() > 0) {
     // read the incoming byte:
     cmd = (char)Serial1.read();
-     
-    if (cmd == '1'){
-      motors.setSpeeds(0,0);
+
+    if (cmd == '1') {
+      motors.setSpeeds(0, 0);
       Serial1.println(" Manual Control ");
-      manualMode(); 
+      manualMode();
     }
-    else if (cmd == '2'){
-      motors.setSpeeds(0,0);
-      Serial1.println (" Automatic Control");
+    else if (cmd == '2') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Automatic Control ");
+      lineDetect();
     }
   }
 }
 
-void manualMode(){
-  
-  int zumoMovement = " ";
-  while (zumoMovement != 'z'){
+void manualMode() {
+
+  int zumoMovement = ' ';
+  while (zumoMovement != 'z') {
     zumoMovement = Serial1.read();
     if (zumoMovement == 'z') {
       Serial1.println(" Returning to Input Menu ");
       getInput();
-      } 
-    switch (zumoMovement){
-     case 'w': case 'W': motors.setSpeeds(200,200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0,0); Serial1.println(" Moving forward "); break;
-     case 's': case 'S': motors.setSpeeds(-200,-200);delay(MOVEMENT_TIME * 5); motors.setSpeeds(0,0);Serial1.println(" Moving backwards ");  break;
-     case 'a': case 'A': motors.setSpeeds(-TURNING_SPEED, TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0,0); Serial1.println(" Turning Left "); break;
-     case 'd': case 'D': motors.setSpeeds(TURNING_SPEED,-TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0,0); Serial1.println(" Turning Right "); break;
-     case 'q': case'Q': motors.setLeftSpeed(0); motors.setRightSpeed(0); Serial1.println(" Stopping "); break;
+    }
+    switch (zumoMovement) {
+      case 'w': case 'W': motors.setSpeeds(200, 200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
+      case 's': case 'S': motors.setSpeeds(-200, -200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
+      case 'a': case 'A': motors.setSpeeds(-TURNING_SPEED, TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
+      case 'd': case 'D': motors.setSpeeds(TURNING_SPEED, -TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
+      case 'q': case'Q': motors.setLeftSpeed(0); motors.setRightSpeed(0); Serial1.println(" Stopping "); break;
     }
   }
 }
 
-void lineDetect(){
-  int zumoMovement = " ";
-  while (zumoMovement != 'z'){
-    zumoMovement = Serial1.read();
+void lineDetect() {
+  int cmd = ' ';
+
+  while (cmd != 'z') {
+    cmd = Serial1.read();
+    if (cmd == 'z') {
+      motors.setSpeeds(0, 0);
+      Serial1.println(" Returning to Input Menu ");
+      getInput();
+    }
     lineSensors.read(lineSensorValues);
-    
-    if (zumoMovement == 'z') {
-      Serial1.println(" Returning to Input Menu ");
-      getInput();
+
+    if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD)) {
+      motors.setSpeeds(0, 0);
+      atWall = true;
+    }
+    else if ((lineSensorValues[0] > QTR_THRESHOLD) && (lineSensorValues[1] < QTR_THRESHOLD))
+    {
+      // If leftmost sensor detects line, reverse and turn to the
+      // right.
+      delay(20);
+      lineSensors.read(lineSensorValues);
+      delay(5);
+      if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD))
+      {
+        motors.setSpeeds(0, 0);
+        atWall = true;
       }
-      
-   else if (zumoMovement == 'A'){    
-   if (lineSensorValues[0] > QTR_THRESHOLD)
-  {
-    // If leftmost sensor detects line, reverse and turn to the
-    // right.
-    motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-    delay(REVERSE_DURATION);
-    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-    delay(TURN_DURATION);
-    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      else {
+        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+        delay(REVERSE_DURATION);
+        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        delay(TURN_DURATION);
+        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      }
+    }
+    else if ((lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD) && (lineSensorValues[1] < QTR_THRESHOLD))
+    {
+      // If rightmost sensor detects line, reverse and turn to the
+      // left.
+      delay(20);
+      lineSensors.read(lineSensorValues);
+      delay(5);
+      if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD))
+      {
+        motors.setSpeeds(0, 0);
+        atWall = true;
+      }
+      else {
+        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+        delay(REVERSE_DURATION);
+        motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+        delay(TURN_DURATION);
+        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      }
+    }
+    else {
+      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      atWall = false;
+    }
   }
-  else if (lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD )
-  {
-    // If rightmost sensor detects line, reverse and turn to the
-    // left.
-    motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-    delay(REVERSE_DURATION);
-    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-    delay(TURN_DURATION);
-    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-  }
-  else
-  {
-    // Otherwise, go straight.
-    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-  }
-  }
+  //    if (atWall) {
+  //    Serial1.println(" at Wall press M for manual mode");
+  //    if (cmd == 'M' || cmd == 'm') {
+  //      Serial1.println(" Manual Control ");
+  //      manualMode();
+  //    }
 }
 }
