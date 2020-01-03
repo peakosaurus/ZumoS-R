@@ -6,6 +6,7 @@
 #define MOVEMENT_TIME    150
 #define QTR_THRESHOLD    1000  // microseconds
 
+
 //Serial1 communicates over XBee
 //Serial communicates over USB cable
 
@@ -16,6 +17,7 @@ Zumo32U4ButtonA buttonA;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
+int calibratedLineSensorValue[3]; // used instead of QTR-THRESHOLD
 //bool atWall = false;
 
 void setup() {
@@ -28,6 +30,12 @@ void setup() {
 #define REVERSE_DURATION  100  // ms
 #define TURN_DURATION     100  // ms
   lineSensors.initThreeSensors();
+  calibrateSensors();
+  for (int i = 0; i < 3 ; i++) {
+  calibratedLineSensorValue[i] = lineSensors.calibratedMaximumOn[i];
+  // The calibrated maximum values measured for each sensor, with emitters on.
+  }
+
 }
 
 void loop() {
@@ -53,7 +61,43 @@ void getInput() {
       Serial1.println (" Automatic Control ");
       lineDetect();
     }
+    else if (cmd == '0') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Sensor Calibrate ");
+      calibrateSensors();
+    }
   }
+}
+// taken from the line follower example
+void calibrateSensors()
+{
+
+  // Play audible countdown.
+  for (int i = 0; i < 3; i++)
+  {
+    delay(1000);
+    buzzer.playNote(NOTE_G(3), 200, 15);
+  }
+  delay(1000);
+  buzzer.playNote(NOTE_G(4), 500, 15);
+  delay(1000);
+
+  for (uint16_t i = 0; i < 120; i++)
+  {
+    if (i > 30 && i <= 90)
+    {
+      motors.setSpeeds(-200, 200);
+    }
+    else
+    {
+      motors.setSpeeds(200, -200);
+    }
+
+    lineSensors.calibrate();
+  }
+  motors.setSpeeds(0, 0);
+
+  getInput();
 }
 
 void manualMode() {
@@ -87,21 +131,20 @@ void lineDetect() {
     }
     lineSensors.read(lineSensorValues);
 
-    if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD)) {
+    if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2])) {
       motors.setSpeeds(0, 0);
-      atWall = true;
     }
-    else if ((lineSensorValues[0] > QTR_THRESHOLD) && (lineSensorValues[1] < QTR_THRESHOLD))
+    else if ((lineSensorValues[0] > calibratedLineSensorValue[0]) && (lineSensorValues[1] < calibratedLineSensorValue[1]))
     {
       // If leftmost sensor detects line, reverse and turn to the
       // right.
-      delay(20);
+      delay(10);
       lineSensors.read(lineSensorValues);
-      delay(5);
-      if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD))
+      delay(10);
+      if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
       {
         motors.setSpeeds(0, 0);
-        atWall = true;
+        //        atWall = true;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
@@ -111,17 +154,17 @@ void lineDetect() {
         motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
       }
     }
-    else if ((lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD) && (lineSensorValues[1] < QTR_THRESHOLD))
+    else if ((lineSensorValues[2] > calibratedLineSensorValue[2]) && (lineSensorValues[1] < calibratedLineSensorValue[1]))
     {
       // If rightmost sensor detects line, reverse and turn to the
       // left.
-      delay(20);
+      delay(10);
       lineSensors.read(lineSensorValues);
-      delay(5);
-      if (lineSensorValues[1] > QTR_THRESHOLD || (lineSensorValues[0] > QTR_THRESHOLD && lineSensorValues[NUM_SENSORS - 1] > QTR_THRESHOLD))
+      delay(10);
+      if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
       {
         motors.setSpeeds(0, 0);
-        atWall = true;
+        //       atWall = true;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
@@ -133,7 +176,7 @@ void lineDetect() {
     }
     else {
       motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-      atWall = false;
+      //      atWall = false;
     }
   }
   //    if (atWall) {
@@ -142,5 +185,4 @@ void lineDetect() {
   //      Serial1.println(" Manual Control ");
   //      manualMode();
   //    }
-}
 }
