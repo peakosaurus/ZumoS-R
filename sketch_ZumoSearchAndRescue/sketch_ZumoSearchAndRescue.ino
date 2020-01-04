@@ -18,7 +18,7 @@ Zumo32U4ButtonA buttonA;
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
 int calibratedLineSensorValue[3]; // used instead of QTR-THRESHOLD
-//bool atWall = false;
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -44,6 +44,7 @@ void loop() {
 }
 
 void getInput() {
+  motors.setSpeeds(0, 0);
   char cmd; // for incoming serial data
 
   // send data only when you receive data:
@@ -138,9 +139,9 @@ void lineDetect() {
     {
       // If leftmost sensor detects line, reverse and turn to the
       // right.
-      delay(10);
+      delay(50);
       lineSensors.read(lineSensorValues);
-      delay(10);
+  //    delay(10);
       if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
       {
         motors.setSpeeds(0, 0);
@@ -158,9 +159,9 @@ void lineDetect() {
     {
       // If rightmost sensor detects line, reverse and turn to the
       // left.
-      delay(10);
+      delay(50);
       lineSensors.read(lineSensorValues);
-      delay(10);
+    //  delay(10);
       if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
       {
         motors.setSpeeds(0, 0);
