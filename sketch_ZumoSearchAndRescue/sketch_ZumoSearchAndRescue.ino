@@ -4,7 +4,6 @@
 
 #define TURNING_SPEED    150
 #define MOVEMENT_TIME    150
-#define QTR_THRESHOLD    1000  // microseconds
 
 
 //Serial1 communicates over XBee
@@ -17,7 +16,6 @@ Zumo32U4ButtonA buttonA;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
-int calibratedLineSensorValue[3]; // used instead of QTR-THRESHOLD
 
 
 void setup() {
@@ -31,10 +29,6 @@ void setup() {
 #define TURN_DURATION     100  // ms
   lineSensors.initThreeSensors();
   calibrateSensors();
-  for (int i = 0; i < 3 ; i++) {
-  calibratedLineSensorValue[i] = lineSensors.calibratedMaximumOn[i];
-  // The calibrated maximum values measured for each sensor, with emitters on.
-  }
 
 }
 
@@ -132,17 +126,17 @@ void lineDetect() {
     }
     lineSensors.read(lineSensorValues);
 
-    if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2])) {
+    if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2])) {
       motors.setSpeeds(0, 0);
     }
-    else if ((lineSensorValues[0] > calibratedLineSensorValue[0]) && (lineSensorValues[1] < calibratedLineSensorValue[1]))
+    else if ((lineSensorValues[0] > lineSensors.calibratedMaximumOn[0]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
       // If leftmost sensor detects line, reverse and turn to the
       // right.
       delay(50);
       lineSensors.read(lineSensorValues);
-  //    delay(10);
-      if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
+      //    delay(10);
+      if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
         //        atWall = true;
@@ -155,14 +149,14 @@ void lineDetect() {
         motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
       }
     }
-    else if ((lineSensorValues[2] > calibratedLineSensorValue[2]) && (lineSensorValues[1] < calibratedLineSensorValue[1]))
+    else if ((lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
       // If rightmost sensor detects line, reverse and turn to the
       // left.
       delay(50);
       lineSensors.read(lineSensorValues);
-    //  delay(10);
-      if (lineSensorValues[1] > calibratedLineSensorValue[1] || (lineSensorValues[0] > calibratedLineSensorValue[0] && lineSensorValues[2] > calibratedLineSensorValue[2]))
+      //  delay(10);
+      if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
         //       atWall = true;
