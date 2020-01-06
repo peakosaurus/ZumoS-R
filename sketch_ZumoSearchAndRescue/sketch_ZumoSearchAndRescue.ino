@@ -8,7 +8,7 @@
 
 //Serial1 communicates over XBee
 //Serial communicates over USB cable
-
+Zumo32U4Encoders encoders;
 Zumo32U4Motors motors;
 Zumo32U4Buzzer buzzer;
 Zumo32U4LineSensors lineSensors;
@@ -17,7 +17,10 @@ Zumo32U4ButtonA buttonA;
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
 
-
+#define Kp 1
+#define STRAIGHTFACTOR 1
+#define SPEED             200
+//Andrew Brown. (February 25, 2017 ) Zumo 32U4 Synchronize Motor | A. Brown Design. Retrieved January 06, 2020, from http://www.abrowndesign.com/2017/02/25/zumo-32u4-synchronize-motor/
 void setup() {
   // put your setup code here, to run once:
   Serial1.begin(9600);
@@ -25,6 +28,7 @@ void setup() {
 #define REVERSE_SPEED     200  // 0 is stopped, 400 is full speed
 #define TURN_SPEED        200
 #define FORWARD_SPEED     200
+
 #define REVERSE_DURATION  100  // ms
 #define TURN_DURATION     100  // ms
   lineSensors.initThreeSensors();
@@ -91,7 +95,6 @@ void calibrateSensors()
     lineSensors.calibrate();
   }
   motors.setSpeeds(0, 0);
-
   getInput();
 }
 
@@ -115,6 +118,13 @@ void manualMode() {
 }
 
 void lineDetect() {
+  //  int countsLeft = encoders.getCountsAndResetLeft();
+  //  int countsRight = encoders.getCountsAndResetRight();
+  //  int currentSpeedLeft = SPEED;
+  //  int currentSpeedRight = SPEED;
+  //  int error;
+  //  int correction;
+  bool atWall = false;
   int cmd = ' ';
 
   while (cmd != 'z') {
@@ -128,6 +138,7 @@ void lineDetect() {
 
     if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2])) {
       motors.setSpeeds(0, 0);
+      atWall = true;
     }
     else if ((lineSensorValues[0] > lineSensors.calibratedMaximumOn[0]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
@@ -135,11 +146,10 @@ void lineDetect() {
       // right.
       delay(50);
       lineSensors.read(lineSensorValues);
-      //    delay(10);
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
-        //        atWall = true;
+        atWall = true;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
@@ -147,19 +157,18 @@ void lineDetect() {
         motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
         delay(TURN_DURATION);
         motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+        atWall = false;
       }
     }
     else if ((lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
-      // If rightmost sensor detects line, reverse and turn to the
-      // left.
+      // If rightmost sensor detects line, reverse and turn to the left.
       delay(50);
       lineSensors.read(lineSensorValues);
-      //  delay(10);
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
-        //       atWall = true;
+        atWall = true;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
@@ -167,17 +176,19 @@ void lineDetect() {
         motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
         delay(TURN_DURATION);
         motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+        atWall = true;
       }
     }
-    else {
-      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-      //      atWall = false;
+    else if (lineSensorValues[0] < lineSensors.calibratedMaximumOn[0] && lineSensorValues[1] < lineSensors.calibratedMaximumOn[2]) {
+
+      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED - 15);
+      //          motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
+      //          countsLeft = encoders.getCountsLeft();
+      //          countsRight = encoders.getCountsRight();
+      //          error = countsLeft - STRAIGHTFACTOR * countsRight;
+      //          correction = Kp * error;
+      //          currentSpeedRight = SPEED + correction;
+      //          motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
     }
   }
-  //    if (atWall) {
-  //    Serial1.println(" at Wall press M for manual mode");
-  //    if (cmd == 'M' || cmd == 'm') {
-  //      Serial1.println(" Manual Control ");
-  //      manualMode();
-  //    }
 }
