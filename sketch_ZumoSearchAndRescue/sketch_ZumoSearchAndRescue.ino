@@ -16,10 +16,7 @@ Zumo32U4ButtonA buttonA;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
-
-#define Kp 1
 #define STRAIGHTFACTOR 1
-#define SPEED             200
 //Andrew Brown. (February 25, 2017 ) Zumo 32U4 Synchronize Motor | A. Brown Design. Retrieved January 06, 2020, from http://www.abrowndesign.com/2017/02/25/zumo-32u4-synchronize-motor/
 void setup() {
   // put your setup code here, to run once:
@@ -28,9 +25,8 @@ void setup() {
 #define REVERSE_SPEED     200  // 0 is stopped, 400 is full speed
 #define TURN_SPEED        200
 #define FORWARD_SPEED     200
-
-#define REVERSE_DURATION  100  // ms
-#define TURN_DURATION     100  // ms
+#define REVERSE_DURATION  150  // ms
+#define TURN_DURATION     150  // ms
   lineSensors.initThreeSensors();
   calibrateSensors();
 
@@ -75,11 +71,16 @@ void calibrateSensors()
   for (int i = 0; i < 3; i++)
   {
     delay(1000);
-    buzzer.playNote(NOTE_G(3), 200, 15);
+    ledYellow(1);
+    buzzer.playNote(NOTE_G(3), 500, 15);
   }
+  
   delay(1000);
+  ledGreen(1);
+  ledYellow(0);
   buzzer.playNote(NOTE_G(4), 500, 15);
   delay(1000);
+  ledGreen(0);
 
   for (uint16_t i = 0; i < 120; i++)
   {
@@ -99,7 +100,7 @@ void calibrateSensors()
 }
 
 void manualMode() {
-
+  motors.setSpeeds(0, 0);
   int zumoMovement = ' ';
   while (zumoMovement != 'z') {
     zumoMovement = Serial1.read();
@@ -118,46 +119,53 @@ void manualMode() {
 }
 
 void lineDetect() {
-  //  int countsLeft = encoders.getCountsAndResetLeft();
-  //  int countsRight = encoders.getCountsAndResetRight();
-  //  int currentSpeedLeft = SPEED;
-  //  int currentSpeedRight = SPEED;
-  //  int error;
-  //  int correction;
-  bool atWall = false;
+  int countsLeft = encoders.getCountsAndResetLeft();
+  int countsRight = encoders.getCountsAndResetRight();
+  int currentSpeedLeft = FORWARD_SPEED;
+  int currentSpeedRight = FORWARD_SPEED;
+  int error;
+  int correction;
   int cmd = ' ';
 
+  motors.setSpeeds(0, 0);
   while (cmd != 'z') {
     cmd = Serial1.read();
     if (cmd == 'z') {
       motors.setSpeeds(0, 0);
       Serial1.println(" Returning to Input Menu ");
-      getInput();
+      getInput();     
     }
     lineSensors.read(lineSensorValues);
 
     if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2])) {
+      // if the middle sensor or any other sensor detects a line stop.
       motors.setSpeeds(0, 0);
-      atWall = true;
+      countsRight = encoders.getCountsAndResetRight();
+      countsRight = encoders.getCountsAndResetLeft();
+      stopped();
+      return;
     }
     else if ((lineSensorValues[0] > lineSensors.calibratedMaximumOn[0]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
-      // If leftmost sensor detects line, reverse and turn to the
-      // right.
+      // If leftmost sensor detects line, reverse and turn to the right.
       delay(50);
       lineSensors.read(lineSensorValues);
+      // delay to check the middle as it's not as far forward as the left and right.
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
-        atWall = true;
+        stopped();
+        return;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
-        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        motors.setSpeeds(TURN_SPEED, -TURN_SPEED + 15);
         delay(TURN_DURATION);
-        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-        atWall = false;
+        countsLeft = encoders.getCountsAndResetLeft();
+        countsRight = encoders.getCountsAndResetRight();
+        motors.setSpeeds(0, 0);
+
       }
     }
     else if ((lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
@@ -168,27 +176,68 @@ void lineDetect() {
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
         motors.setSpeeds(0, 0);
-        atWall = true;
+        stopped();
+        return;
       }
       else {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
         motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
         delay(TURN_DURATION);
-        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
-        atWall = true;
+        countsLeft = encoders.getCountsAndResetLeft();
+        countsRight = encoders.getCountsAndResetRight();
+        motors.setSpeeds(0, 0);
       }
     }
     else if (lineSensorValues[0] < lineSensors.calibratedMaximumOn[0] && lineSensorValues[1] < lineSensors.calibratedMaximumOn[2]) {
 
-      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED - 15);
-      //          motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
-      //          countsLeft = encoders.getCountsLeft();
-      //          countsRight = encoders.getCountsRight();
-      //          error = countsLeft - STRAIGHTFACTOR * countsRight;
-      //          correction = Kp * error;
-      //          currentSpeedRight = SPEED + correction;
-      //          motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
+      // motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED - 15); // previously used before encoder work
+      motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
+      countsLeft = encoders.getCountsLeft();
+      countsRight = encoders.getCountsRight();
+      error = countsLeft - STRAIGHTFACTOR * countsRight;
+      correction = 1 * error;
+      currentSpeedRight = FORWARD_SPEED + correction;
+      motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
+    }
+  }
+}
+
+void stopped() {
+  int input = ' ';
+  Serial1.println("Stopped At Wall");
+  while (input != 'z') {
+    input = Serial1.read();
+    if (input == 'z') {
+      motors.setSpeeds(0, 0);
+      Serial1.println(" Returning to Input Menu ");
+      return;
+    }
+    switch (input) {
+      case 'l': case 'L':
+        motors.setSpeeds(-200, -200);
+        delay(MOVEMENT_TIME);
+        motors.setSpeeds(0, 0);
+        motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+        delay(TURN_DURATION * 3);
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Turning Left ");
+        break;
+      case 'r': case 'R':
+        motors.setSpeeds(-200, -200);
+        delay(MOVEMENT_TIME);
+        motors.setSpeeds(0, 0);
+        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        delay(TURN_DURATION * 3);
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Turning Right ");
+        break;
+      case 'c': case 'C':
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Going Auto ");
+        lineDetect();
+        return;
+        break;
     }
   }
 }
