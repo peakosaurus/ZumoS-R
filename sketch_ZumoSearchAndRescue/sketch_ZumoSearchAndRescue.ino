@@ -25,8 +25,8 @@ void setup() {
 #define REVERSE_SPEED     200  // 0 is stopped, 400 is full speed
 #define TURN_SPEED        200
 #define FORWARD_SPEED     200
-#define REVERSE_DURATION  150  // ms
-#define TURN_DURATION     150  // ms
+#define REVERSE_DURATION  100  // ms
+#define TURN_DURATION     100  // ms
   lineSensors.initThreeSensors();
   calibrateSensors();
 
@@ -72,13 +72,13 @@ void calibrateSensors()
   {
     delay(1000);
     ledYellow(1);
-    buzzer.playNote(NOTE_G(3), 500, 15);
+//    buzzer.playNote(NOTE_G(3), 500, 15);
   }
   
   delay(1000);
   ledGreen(1);
   ledYellow(0);
-  buzzer.playNote(NOTE_G(4), 500, 15);
+//  buzzer.playNote(NOTE_G(4), 500, 15);
   delay(1000);
   ledGreen(0);
 
@@ -216,19 +216,19 @@ void stopped() {
     switch (input) {
       case 'l': case 'L':
         motors.setSpeeds(-200, -200);
-        delay(MOVEMENT_TIME);
+        delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
         motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-        delay(TURN_DURATION * 3);
+        delay(MOVEMENT_TIME * 3);
         motors.setSpeeds(0, 0);
         Serial1.println(" Turning Left ");
         break;
       case 'r': case 'R':
         motors.setSpeeds(-200, -200);
-        delay(MOVEMENT_TIME);
+        delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
         motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-        delay(TURN_DURATION * 3);
+        delay(MOVEMENT_TIME * 3);
         motors.setSpeeds(0, 0);
         Serial1.println(" Turning Right ");
         break;
