@@ -1,10 +1,10 @@
-#include <Zumo32U4.h>
-#include <Wire.h>
+#include "TurnSensor.h"
 
-
-#define TURNING_SPEED    150
-#define MOVEMENT_TIME    150
-
+// For angles measured by the gyro, our convention is that a
+// value of (1 << 29) represents 45 degrees.  This means that a
+// uint32_t can represent any angle between 0 and 360.
+// this was taken from the Maze Solver example
+const int32_t gyroAngle45 = 0x20000000;
 
 //Serial1 communicates over XBee
 //Serial communicates over USB cable
@@ -12,12 +12,17 @@ Zumo32U4Encoders encoders;
 Zumo32U4Motors motors;
 Zumo32U4Buzzer buzzer;
 Zumo32U4LineSensors lineSensors;
-Zumo32U4ButtonA buttonA;
+Zumo32U4ProximitySensors proxSensors; // taken from the sumo proximity example
+L3G gyro;
+
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
 #define STRAIGHTFACTOR 1
-//Andrew Brown. (February 25, 2017 ) Zumo 32U4 Synchronize Motor | A. Brown Design. Retrieved January 06, 2020, from http://www.abrowndesign.com/2017/02/25/zumo-32u4-synchronize-motor/
+//Andrew Brown.
+//(February 25, 2017 ) Zumo 32U4 Synchronize Motor | A. Brown Design.
+//Retrieved January 06, 2020, from http://www.abrowndesign.com/2017/02/25/zumo-32u4-synchronize-motor/
+
 void setup() {
   // put your setup code here, to run once:
   Serial1.begin(9600);
@@ -27,7 +32,12 @@ void setup() {
 #define FORWARD_SPEED     200
 #define REVERSE_DURATION  100  // ms
 #define TURN_DURATION     100  // ms
+  //alt speeds
+#define RIGHT_TURNING_SPEED    225
+#define MOVEMENT_TIME    150
+  proxSensors.initThreeSensors();
   lineSensors.initThreeSensors();
+  turnSensorSetup();
   calibrateSensors();
 
 }
@@ -61,6 +71,11 @@ void getInput() {
       Serial1.println (" Sensor Calibrate ");
       calibrateSensors();
     }
+    else if (cmd == '3') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Search Mode ");
+      searchRoom();
+    }
   }
 }
 // taken from the line follower example
@@ -72,16 +87,15 @@ void calibrateSensors()
   {
     delay(1000);
     ledYellow(1);
-//    buzzer.playNote(NOTE_G(3), 500, 15);
+    //    buzzer.playNote(NOTE_G(3), 500, 15);
   }
-  
+
   delay(1000);
   ledGreen(1);
   ledYellow(0);
-//  buzzer.playNote(NOTE_G(4), 500, 15);
+  //  buzzer.playNote(NOTE_G(4), 500, 15);
   delay(1000);
   ledGreen(0);
-
   for (uint16_t i = 0; i < 120; i++)
   {
     if (i > 30 && i <= 90)
@@ -92,11 +106,10 @@ void calibrateSensors()
     {
       motors.setSpeeds(200, -200);
     }
-
     lineSensors.calibrate();
   }
   motors.setSpeeds(0, 0);
-  getInput();
+  return;
 }
 
 void manualMode() {
@@ -111,8 +124,8 @@ void manualMode() {
     switch (zumoMovement) {
       case 'w': case 'W': motors.setSpeeds(200, 200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
       case 's': case 'S': motors.setSpeeds(-200, -200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
-      case 'a': case 'A': motors.setSpeeds(-TURNING_SPEED, TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
-      case 'd': case 'D': motors.setSpeeds(TURNING_SPEED, -TURNING_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
+      case 'a': case 'A': motors.setSpeeds(-TURN_SPEED, TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
+      case 'd': case 'D': motors.setSpeeds(TURN_SPEED, -TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
       case 'q': case'Q': motors.setLeftSpeed(0); motors.setRightSpeed(0); Serial1.println(" Stopping "); break;
     }
   }
@@ -127,28 +140,27 @@ void lineDetect() {
   int correction;
   int cmd = ' ';
 
-  motors.setSpeeds(0, 0);
   while (cmd != 'z') {
     cmd = Serial1.read();
     if (cmd == 'z') {
       motors.setSpeeds(0, 0);
       Serial1.println(" Returning to Input Menu ");
-      getInput();     
+      getInput();
     }
     lineSensors.read(lineSensorValues);
 
     if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2])) {
       // if the middle sensor or any other sensor detects a line stop.
+      // calibratedMaximumOn https://www.pololu.com/docs/0J19/all
       motors.setSpeeds(0, 0);
-      countsRight = encoders.getCountsAndResetRight();
-      countsRight = encoders.getCountsAndResetLeft();
       stopped();
       return;
     }
     else if ((lineSensorValues[0] > lineSensors.calibratedMaximumOn[0]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
       // If leftmost sensor detects line, reverse and turn to the right.
-      delay(50);
+      //deay for 50 milliseconds
+      delay(10);
       lineSensors.read(lineSensorValues);
       // delay to check the middle as it's not as far forward as the left and right.
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
@@ -171,7 +183,7 @@ void lineDetect() {
     else if ((lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
       // If rightmost sensor detects line, reverse and turn to the left.
-      delay(50);
+      delay(10);
       lineSensors.read(lineSensorValues);
       if (lineSensorValues[1] > lineSensors.calibratedMaximumOn[1] || (lineSensorValues[0] > lineSensors.calibratedMaximumOn[0] && lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]))
       {
@@ -215,22 +227,30 @@ void stopped() {
     }
     switch (input) {
       case 'l': case 'L':
-        motors.setSpeeds(-200, -200);
-        delay(REVERSE_DURATION);
-        motors.setSpeeds(0, 0);
-        motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-        delay(MOVEMENT_TIME * 3);
-        motors.setSpeeds(0, 0);
-        Serial1.println(" Turning Left ");
-        break;
-      case 'r': case 'R':
-        motors.setSpeeds(-200, -200);
+        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
         motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-        delay(MOVEMENT_TIME * 3);
+        while ((int32_t)turnAngle < turnAngle45 * 2)
+        {
+          turnSensorUpdate();
+        }
         motors.setSpeeds(0, 0);
-        Serial1.println(" Turning Right ");
+        turnSensorReset();
+        Serial1.println(" Turned Left ");
+        break;
+      case 'r': case 'R':
+        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+        delay(REVERSE_DURATION);
+        motors.setSpeeds(0, 0);
+        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        while ((int32_t)turnAngle > -turnAngle45 * 2)
+        {
+          turnSensorUpdate();
+        }
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Turned Right ");
+        turnSensorReset();
         break;
       case 'c': case 'C':
         motors.setSpeeds(0, 0);
@@ -239,5 +259,78 @@ void stopped() {
         return;
         break;
     }
+  }
+}
+void searchRoom() {
+  bool personFound = false;
+  int input = ' ';
+  Serial1.println("Search Room");
+  delay(1000);
+  Serial1.println("Left or Right?");
+  while (input != 'z') {
+    input = Serial1.read();
+    if (input == 'z') {
+      motors.setSpeeds(0, 0);
+      Serial1.println(" Returning to Input Menu ");
+      return;
+    }
+    if (input == 'l' || input == 'L') {
+      Serial1.println(" Turning Left ");
+      delay(500);
+      Serial1.println(" looking for object. ");
+      motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+      while ((int32_t)turnAngle < turnAngle45 * 2)
+      {
+        proxSensors.read();
+        if (proxSensors.countsFrontWithLeftLeds() >= 6
+            || proxSensors.countsFrontWithRightLeds() >= 6)
+        {
+          personFound = true;
+        }
+        turnSensorUpdate();
+      }
+      motors.setSpeeds(0, 0);
+      turnSensorReset();
+      if (personFound = true) {
+        buzzer.playNote(NOTE_E(3), 500, 15);
+        Serial1.println(" Object detected. ");
+      }
+    }
+    else if (input == 'r' || input == 'R') {
+      //      motors.setSpeeds(TURN_SPEED, -RIGHT_TURNING_SPEED );
+      //      delay(MOVEMENT_TIME * 3);
+      //      motors.setSpeeds(0, 0);
+      Serial1.println(" Turning Right ");
+      Serial1.println(" looking for object. ");
+      motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+      while ((int32_t)turnAngle > -turnAngle45 * 2)
+      {
+        proxSensors.read();
+        if (proxSensors.countsFrontWithLeftLeds() >= 6
+            || proxSensors.countsFrontWithRightLeds() >= 6)
+        {
+          personFound = true;
+        }
+        turnSensorUpdate();
+      }
+      motors.setSpeeds(0, 0);
+      turnSensorReset();
+      if (personFound = true) {
+        buzzer.playNote(NOTE_E(3), 500, 15);
+        Serial1.println(" Object detected. ");
+      }
+      //      Serial1.println(" Turning Right ");
+      //      Serial1.println(" looking for object. ");
+      //      proxSensors.read();
+      //      if (proxSensors.countsFrontWithLeftLeds() >= 5
+      //          || proxSensors.countsFrontWithRightLeds() >= 5)
+      //      {
+      //        buzzer.playNote(NOTE_E(3), 500, 15);
+      //        Serial1.println(" Object detected. ");
+      //      }
+    }
+
+
+
   }
 }
