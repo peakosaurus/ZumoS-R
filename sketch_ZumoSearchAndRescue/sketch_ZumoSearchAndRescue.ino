@@ -15,6 +15,11 @@ Zumo32U4LineSensors lineSensors;
 Zumo32U4ProximitySensors proxSensors; // taken from the sumo proximity example
 L3G gyro;
 
+int personCount = 0;
+int roomCount = 0;
+int countsLeft = encoders.getCountsAndResetLeft();
+int countsRight = encoders.getCountsAndResetRight();
+bool personFound = false;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
@@ -66,15 +71,22 @@ void getInput() {
       Serial1.println (" Automatic Control ");
       lineDetect();
     }
-    else if (cmd == '0') {
-      motors.setSpeeds(0, 0);
-      Serial1.println (" Sensor Calibrate ");
-      calibrateSensors();
-    }
+
     else if (cmd == '3') {
       motors.setSpeeds(0, 0);
       Serial1.println (" Search Mode ");
       searchRoom();
+    }
+    else if (cmd == '4') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Scan Mode ");
+      proximityScan();
+      Serial1.println (personFound);
+    }
+    else if (cmd == '0') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Sensor Calibrate ");
+      calibrateSensors();
     }
   }
 }
@@ -132,14 +144,13 @@ void manualMode() {
 }
 
 void lineDetect() {
-  int countsLeft = encoders.getCountsAndResetLeft();
-  int countsRight = encoders.getCountsAndResetRight();
   int currentSpeedLeft = FORWARD_SPEED;
   int currentSpeedRight = FORWARD_SPEED;
   int error;
   int correction;
   int cmd = ' ';
-
+  countsLeft = encoders.getCountsAndResetLeft();
+  countsRight = encoders.getCountsAndResetRight();
   while (cmd != 'z') {
     cmd = Serial1.read();
     if (cmd == 'z') {
@@ -202,7 +213,6 @@ void lineDetect() {
       }
     }
     else if (lineSensorValues[0] < lineSensors.calibratedMaximumOn[0] && lineSensorValues[1] < lineSensors.calibratedMaximumOn[2]) {
-
       // motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED - 15); // previously used before encoder work
       motors.setSpeeds(currentSpeedLeft, currentSpeedRight);
       countsLeft = encoders.getCountsLeft();
@@ -230,26 +240,28 @@ void stopped() {
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
-        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+        Serial1.println(" Turning Left ");
+        turnSensorReset();
+        motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
         while ((int32_t)turnAngle < turnAngle45 * 2)
         {
           turnSensorUpdate();
         }
         motors.setSpeeds(0, 0);
         turnSensorReset();
-        Serial1.println(" Turned Left ");
         break;
       case 'r': case 'R':
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
+        Serial1.println(" Turning Right ");
+        turnSensorReset();
         motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
         while ((int32_t)turnAngle > -turnAngle45 * 2)
         {
           turnSensorUpdate();
         }
         motors.setSpeeds(0, 0);
-        Serial1.println(" Turned Right ");
         turnSensorReset();
         break;
       case 'c': case 'C':
@@ -258,14 +270,17 @@ void stopped() {
         lineDetect();
         return;
         break;
+
+      case 't': case 'T':
+        motors.setSpeeds(0, 0);
+        Serial1.println(" At T Junction ");
+        atIntersection();
+        return
+          break;
     }
   }
 }
-void searchRoom() {
-  bool personFound = false;
-  int input = ' ';
-  Serial1.println("Search Room");
-  delay(1000);
+void atIntersection() {
   Serial1.println("Left or Right?");
   while (input != 'z') {
     input = Serial1.read();
@@ -274,63 +289,173 @@ void searchRoom() {
       Serial1.println(" Returning to Input Menu ");
       return;
     }
-    if (input == 'l' || input == 'L') {
-      Serial1.println(" Turning Left ");
-      delay(500);
-      Serial1.println(" looking for object. ");
-      motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-      while ((int32_t)turnAngle < turnAngle45 * 2)
-      {
-        proxSensors.read();
-        if (proxSensors.countsFrontWithLeftLeds() >= 6
-            || proxSensors.countsFrontWithRightLeds() >= 6)
-        {
-          personFound = true;
-        }
-        turnSensorUpdate();
-      }
-      motors.setSpeeds(0, 0);
-      turnSensorReset();
-      if (personFound = true) {
-        buzzer.playNote(NOTE_E(3), 500, 15);
-        Serial1.println(" Object detected. ");
-      }
+    switch (input) {
+      case 'l' : case 'L' :
+        Serial1.println(" Turning Left ");
+        left90();
+        break;
+      case 'r' : case 'R':
+        Serial1.println(" Turning Left ");
+        right90();
+        break;
     }
-    else if (input == 'r' || input == 'R') {
-      //      motors.setSpeeds(TURN_SPEED, -RIGHT_TURNING_SPEED );
-      //      delay(MOVEMENT_TIME * 3);
-      //      motors.setSpeeds(0, 0);
-      Serial1.println(" Turning Right ");
-      Serial1.println(" looking for object. ");
-      motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-      while ((int32_t)turnAngle > -turnAngle45 * 2)
-      {
-        proxSensors.read();
-        if (proxSensors.countsFrontWithLeftLeds() >= 6
-            || proxSensors.countsFrontWithRightLeds() >= 6)
-        {
-          personFound = true;
-        }
-        turnSensorUpdate();
-      }
-      motors.setSpeeds(0, 0);
-      turnSensorReset();
-      if (personFound = true) {
-        buzzer.playNote(NOTE_E(3), 500, 15);
-        Serial1.println(" Object detected. ");
-      }
-      //      Serial1.println(" Turning Right ");
-      //      Serial1.println(" looking for object. ");
-      //      proxSensors.read();
-      //      if (proxSensors.countsFrontWithLeftLeds() >= 5
-      //          || proxSensors.countsFrontWithRightLeds() >= 5)
-      //      {
-      //        buzzer.playNote(NOTE_E(3), 500, 15);
-      //        Serial1.println(" Object detected. ");
-      //      }
-    }
-
-
 
   }
-}
+
+  void searchRoom() {
+
+    int input = ' ';
+    roomCount ++;
+    delay(1000);
+    Serial1.println("Left or Right?");
+    while (input != 'z') {
+      input = Serial1.read();
+      if (input == 'z') {
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Returning to Input Menu ");
+        return;
+      }
+
+      switch (input) {
+        case 'l' : case 'L' :
+          personFound = false;
+          Serial1.println(" Turning Left ");
+          left90();
+          moveIntoRoom();
+          //rotate 45° to the Right and scan
+          right45();
+          proximityScan();
+          // rotate 90° to the left to scan other side of room
+          left90();
+          proximityScan();
+          //rotate 45° back to original position
+          right45();
+          proximityScan();
+          // back out of the room to corridor position
+          moveOutRoom();
+          //rotate back to starting position
+          right90();
+          // signal to the user that a object was found.
+          if (personFound) {
+            buzzer.playNote(NOTE_E(3), 500, 15);
+            Serial1.println(" Person detected. ");
+            personCount += 1 ;
+          }
+          // display current totals
+          Serial1.print(personFound);
+          Serial1.print(" person found in room ");
+          Serial1.println(roomCount);
+
+          break;
+        case 'r': case 'R' :
+          personFound = false;
+          //rotate 90° to face the room
+          Serial1.println(" Turning Right ");
+          right90();
+          moveIntoRoom();
+          left45();
+          proximityScan();
+          right90();
+          proximityScan();
+          left45();
+          proximityScan();
+
+          // signal to the user that a object was found.
+          if (personFound) {
+            buzzer.playNote(NOTE_E(3), 500, 15);
+            Serial1.println(" Person detected. ");
+            personCount += 1 ;
+          }
+          // display current totals
+          Serial1.print(personFound);
+          Serial1.print(" person found in room ");
+          Serial1.println(roomCount);
+          moveOutRoom();
+          //rotate back to starting position
+          left90();
+          break;
+      }
+    }
+  }
+
+  void moveIntoRoom() {
+    countsLeft = encoders.getCountsAndResetLeft();
+    countsRight = encoders.getCountsAndResetRight();
+    delay(500);
+    motors.setSpeeds(100, 100);
+    Serial1.println(" Moving into room ");
+    do {
+      countsLeft = encoders.getCountsLeft();
+      countsRight = encoders.getCountsRight();
+    }  while (countsLeft < 1000 && countsRight < 1000);
+    motors.setSpeeds(0, 0);
+  }
+
+  void moveOutRoom() {
+    countsLeft = encoders.getCountsAndResetLeft();
+    countsRight = encoders.getCountsAndResetRight();
+    delay(1000);
+    motors.setSpeeds(-100, -100);
+    do {
+      countsLeft = encoders.getCountsLeft();
+      countsRight = encoders.getCountsRight();
+    }  while (countsLeft > -1000 && countsRight > -1000);
+    motors.setSpeeds(0, 0);
+  }
+
+  void left90() {
+    delay(500);
+    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+    while ((int32_t)turnAngle < turnAngle45 * 2)
+    {
+      turnSensorUpdate();
+    }
+    motors.setSpeeds(0, 0);
+    turnSensorReset();
+    delay(500);
+  }
+
+  void right90() {
+    delay(500);
+    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+    while ((int32_t)turnAngle > -turnAngle45 * 2)
+    {
+      turnSensorUpdate();
+    }
+    motors.setSpeeds(0, 0);
+    turnSensorReset();
+    delay(500);
+  }
+
+  void left45() {
+    delay(500);
+    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+    while ((int32_t)turnAngle < turnAngle45)
+    {
+      turnSensorUpdate();
+    }
+    motors.setSpeeds(0, 0);
+    turnSensorReset();
+    delay(500);
+  }
+
+  void right45() {
+    delay(500);
+    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+    while ((int32_t)turnAngle > -turnAngle45)
+    {
+      turnSensorUpdate();
+    }
+    motors.setSpeeds(0, 0);
+    turnSensorReset();
+    delay(500);
+  }
+
+  void proximityScan() {
+    proxSensors.read();
+    if (proxSensors.countsFrontWithLeftLeds() >= 6
+        || proxSensors.countsFrontWithRightLeds() >= 6)
+    {
+      personFound = true;
+    }
+  }
