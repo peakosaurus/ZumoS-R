@@ -15,11 +15,20 @@ Zumo32U4LineSensors lineSensors;
 Zumo32U4ProximitySensors proxSensors; // taken from the sumo proximity example
 L3G gyro;
 
-int personCount = 0;
-int roomCount = 0;
 int countsLeft = encoders.getCountsAndResetLeft();
 int countsRight = encoders.getCountsAndResetRight();
+int personCount = 0;
+int roomCount = 0;
 bool personFound = false;
+String roomPosition = " ";
+bool reachedIntersection = false;
+bool endOfCorridor = false;
+
+int junctionCountsLeft = 0;
+int junctionCountsRight = 0;
+//used for after searching a room
+int junctionCountsLeft2 = 0;
+int junctionCountsRight2 = 0;
 
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
@@ -49,6 +58,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  // enter the main menu system
   getInput();
 }
 
@@ -77,12 +87,21 @@ void getInput() {
       Serial1.println (" Search Mode ");
       searchRoom();
     }
-    else if (cmd == '4') {
+
+    ///////////// testing modes
+    else if (cmd == '8') {
       motors.setSpeeds(0, 0);
       Serial1.println (" Scan Mode ");
       proximityScan();
       Serial1.println (personFound);
     }
+
+    else if (cmd == '9') {
+      motors.setSpeeds(0, 0);
+      Serial1.println (" Variable print ");
+      variablePrint();
+    }
+
     else if (cmd == '0') {
       motors.setSpeeds(0, 0);
       Serial1.println (" Sensor Calibrate ");
@@ -93,7 +112,6 @@ void getInput() {
 // taken from the line follower example
 void calibrateSensors()
 {
-
   // Play audible countdown.
   for (int i = 0; i < 3; i++)
   {
@@ -151,12 +169,18 @@ void lineDetect() {
   int cmd = ' ';
   countsLeft = encoders.getCountsAndResetLeft();
   countsRight = encoders.getCountsAndResetRight();
+
   while (cmd != 'z') {
     cmd = Serial1.read();
     if (cmd == 'z') {
       motors.setSpeeds(0, 0);
       Serial1.println(" Returning to Input Menu ");
-      getInput();
+      if (reachedIntersection) {
+        junctionCountsLeft = encoders.getCountsLeft();
+        junctionCountsRight = encoders.getCountsRight();
+      }
+      return;
+      //getInput();
     }
     lineSensors.read(lineSensorValues);
 
@@ -170,7 +194,7 @@ void lineDetect() {
     else if ((lineSensorValues[0] > lineSensors.calibratedMaximumOn[0]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
     {
       // If leftmost sensor detects line, reverse and turn to the right.
-      //deay for 50 milliseconds
+      //delay for 50 milliseconds
       delay(10);
       lineSensors.read(lineSensorValues);
       // delay to check the middle as it's not as far forward as the left and right.
@@ -188,7 +212,6 @@ void lineDetect() {
         countsLeft = encoders.getCountsAndResetLeft();
         countsRight = encoders.getCountsAndResetRight();
         motors.setSpeeds(0, 0);
-
       }
     }
     else if ((lineSensorValues[2] > lineSensors.calibratedMaximumOn[2]) && (lineSensorValues[1] < lineSensors.calibratedMaximumOn[1]))
@@ -235,6 +258,15 @@ void stopped() {
       Serial1.println(" Returning to Input Menu ");
       return;
     }
+    // if we previously stopped at an intersection, then we will be stopping at the end of the corridor
+    // therefore we get the counts for the wheels for the journey from the room to the end. We'll combine this with the other figures saved
+    // to return to to the intersection.
+    if (reachedIntersection == true) {
+      endOfCorridor = true;
+      junctionCountsLeft2 = encoders.getCountsLeft();
+      junctionCountsRight2 = encoders.getCountsRight();
+      return;
+    };
     switch (input) {
       case 'l': case 'L':
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
@@ -254,20 +286,20 @@ void stopped() {
         Serial1.println(" Going Auto ");
         lineDetect();
         return;
-        break;
-
       case 't': case 'T':
         motors.setSpeeds(0, 0);
         Serial1.println(" At T Junction ");
         atIntersection();
         return;
-        break;
     }
   }
 }
 void atIntersection() {
+  reachedIntersection = true;
+
   int input = ' ';
   Serial1.println("Left or Right?");
+
   while (input != 'z') {
     input = Serial1.read();
     if (input == 'z') {
@@ -275,17 +307,65 @@ void atIntersection() {
       Serial1.println(" Returning to Input Menu ");
       return;
     }
-    switch (input) {
-      case 'l' : case 'L' :
-        Serial1.println(" Turning Left ");
-        left90();
-        break;
-      case 'r' : case 'R':
-        Serial1.println(" Turning Left ");
-        right90();
-        break;
+
+    if ((input == 'l' && endOfCorridor == false) || (input == 'L' && endOfCorridor == false) ) {
+      Serial1.println(" Turning Left ");
+      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+      delay(REVERSE_DURATION);
+      motors.setSpeeds(0, 0);
+      left90();
+      lineDetect();
+    }
+    else if ((input == 'r' && endOfCorridor == false) || (input == 'R' && endOfCorridor == false)) {
+      Serial1.println(" Turning Right ");
+      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+      delay(REVERSE_DURATION);
+      motors.setSpeeds(0, 0);
+      right90();
+      lineDetect();
     }
 
+    if (endOfCorridor) {
+      Serial1.println(" At end of corridor return to intersection ");
+      if (input == 'b' || input == 'B') {
+        // combine pre room journey and post room journey to get distance to intersection
+        Serial1.println (junctionCountsLeft);
+        Serial1.println (junctionCountsRight);
+        Serial1.println (junctionCountsLeft2);
+        Serial1.println (junctionCountsRight2);
+
+        int leftTotal = (junctionCountsLeft += junctionCountsLeft2);
+        int rightTotal = (junctionCountsRight += junctionCountsRight2);
+
+        Serial1.println (leftTotal);
+        Serial1.println (rightTotal);
+
+        //rotate 180
+        right90();
+        right90();
+        delay(1000);
+        Serial1.println("Calculating return journey");
+        countsLeft = encoders.getCountsAndResetLeft();
+        countsRight = encoders.getCountsAndResetRight();
+        delay(1000);
+        motors.setSpeeds(200, 200);
+        do {
+          countsLeft = encoders.getCountsLeft();
+          countsRight = encoders.getCountsRight();
+        }  while (countsLeft < leftTotal && countsRight < rightTotal);
+        motors.setSpeeds(0, 0);
+        Serial1.println(" Returning to Input Menu ");
+        reachedIntersection = false;
+        endOfCorridor = false;
+        leftTotal = 0;
+        rightTotal = 0;
+        junctionCountsLeft = 0;
+        junctionCountsRight = 0;
+        junctionCountsLeft2 = 0;
+        junctionCountsRight2 = 0;
+        return;
+      }
+    }
   }
 }
 
@@ -306,6 +386,7 @@ void searchRoom() {
     switch (input) {
       case 'l' : case 'L' :
         personFound = false;
+        roomPosition = "left";
         Serial1.println(" Turning Left ");
         left90();
         moveIntoRoom();
@@ -331,11 +412,14 @@ void searchRoom() {
         // display current totals
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
-        Serial1.println(roomCount);
+        Serial1.print(roomCount);
+        Serial1.println (" on the ");
+        Serial1.print (roomPosition);
 
         break;
       case 'r': case 'R' :
         personFound = false;
+        roomPosition = "right";
         //rotate 90° to face the room
         Serial1.println(" Turning Right ");
         right90();
@@ -356,7 +440,9 @@ void searchRoom() {
         // display current totals
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
-        Serial1.println(roomCount);
+        Serial1.print(roomCount);
+        Serial1.println (" on the ");
+        Serial1.print (roomPosition);
         moveOutRoom();
         //rotate back to starting position
         left90();
@@ -445,4 +531,23 @@ void proximityScan() {
   {
     personFound = true;
   }
+}
+
+void variablePrint() {
+  Serial1.print(" Persons found = ");
+  Serial1.println(personCount);
+  Serial1.print(" Rooms Searched = ");
+  Serial1.println(roomCount);
+  Serial1.print(" reachedIntersection = ");
+  Serial1.println(reachedIntersection);
+  Serial1.print(" endOfCorridor = ");
+  Serial1.println(endOfCorridor);
+  Serial1.print(" junctionCountsLeft = ");
+  Serial1.println(junctionCountsLeft);
+  Serial1.print(" junctionCountsRight = ");
+  Serial1.println(junctionCountsRight);
+  Serial1.print(" junctionCountsLeft2 = ");
+  Serial1.println(junctionCountsLeft2);
+  Serial1.print(" junctionCountsRight2 = ");
+  Serial1.println(junctionCountsRight2);
 }
