@@ -241,28 +241,13 @@ void stopped() {
         delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
         Serial1.println(" Turning Left ");
-        turnSensorReset();
-        motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-        while ((int32_t)turnAngle < turnAngle45 * 2)
-        {
-          turnSensorUpdate();
-        }
-        motors.setSpeeds(0, 0);
-        turnSensorReset();
+        left90();
         break;
       case 'r': case 'R':
         motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
         delay(REVERSE_DURATION);
         motors.setSpeeds(0, 0);
-        Serial1.println(" Turning Right ");
-        turnSensorReset();
-        motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-        while ((int32_t)turnAngle > -turnAngle45 * 2)
-        {
-          turnSensorUpdate();
-        }
-        motors.setSpeeds(0, 0);
-        turnSensorReset();
+        right90();
         break;
       case 'c': case 'C':
         motors.setSpeeds(0, 0);
@@ -275,12 +260,13 @@ void stopped() {
         motors.setSpeeds(0, 0);
         Serial1.println(" At T Junction ");
         atIntersection();
-        return
-          break;
+        return;
+        break;
     }
   }
 }
 void atIntersection() {
+  int input = ' ';
   Serial1.println("Left or Right?");
   while (input != 'z') {
     input = Serial1.read();
@@ -301,161 +287,162 @@ void atIntersection() {
     }
 
   }
+}
 
-  void searchRoom() {
+void searchRoom() {
 
-    int input = ' ';
-    roomCount ++;
-    delay(1000);
-    Serial1.println("Left or Right?");
-    while (input != 'z') {
-      input = Serial1.read();
-      if (input == 'z') {
-        motors.setSpeeds(0, 0);
-        Serial1.println(" Returning to Input Menu ");
-        return;
-      }
+  int input = ' ';
+  roomCount ++;
+  delay(1000);
+  Serial1.println("Left or Right?");
+  while (input != 'z') {
+    input = Serial1.read();
+    if (input == 'z') {
+      motors.setSpeeds(0, 0);
+      Serial1.println(" Returning to Input Menu ");
+      return;
+    }
 
-      switch (input) {
-        case 'l' : case 'L' :
-          personFound = false;
-          Serial1.println(" Turning Left ");
-          left90();
-          moveIntoRoom();
-          //rotate 45° to the Right and scan
-          right45();
-          proximityScan();
-          // rotate 90° to the left to scan other side of room
-          left90();
-          proximityScan();
-          //rotate 45° back to original position
-          right45();
-          proximityScan();
-          // back out of the room to corridor position
-          moveOutRoom();
-          //rotate back to starting position
-          right90();
-          // signal to the user that a object was found.
-          if (personFound) {
-            buzzer.playNote(NOTE_E(3), 500, 15);
-            Serial1.println(" Person detected. ");
-            personCount += 1 ;
-          }
-          // display current totals
-          Serial1.print(personFound);
-          Serial1.print(" person found in room ");
-          Serial1.println(roomCount);
+    switch (input) {
+      case 'l' : case 'L' :
+        personFound = false;
+        Serial1.println(" Turning Left ");
+        left90();
+        moveIntoRoom();
+        //rotate 45° to the Right and scan
+        right45();
+        proximityScan();
+        // rotate 90° to the left to scan other side of room
+        left90();
+        proximityScan();
+        //rotate 45° back to original position
+        right45();
+        proximityScan();
+        // back out of the room to corridor position
+        moveOutRoom();
+        //rotate back to starting position
+        right90();
+        // signal to the user that a object was found.
+        if (personFound) {
+          buzzer.playNote(NOTE_E(3), 500, 15);
+          Serial1.println(" Person detected. ");
+          personCount += 1 ;
+        }
+        // display current totals
+        Serial1.print(personFound);
+        Serial1.print(" person found in room ");
+        Serial1.println(roomCount);
 
-          break;
-        case 'r': case 'R' :
-          personFound = false;
-          //rotate 90° to face the room
-          Serial1.println(" Turning Right ");
-          right90();
-          moveIntoRoom();
-          left45();
-          proximityScan();
-          right90();
-          proximityScan();
-          left45();
-          proximityScan();
+        break;
+      case 'r': case 'R' :
+        personFound = false;
+        //rotate 90° to face the room
+        Serial1.println(" Turning Right ");
+        right90();
+        moveIntoRoom();
+        left45();
+        proximityScan();
+        right90();
+        proximityScan();
+        left45();
+        proximityScan();
 
-          // signal to the user that a object was found.
-          if (personFound) {
-            buzzer.playNote(NOTE_E(3), 500, 15);
-            Serial1.println(" Person detected. ");
-            personCount += 1 ;
-          }
-          // display current totals
-          Serial1.print(personFound);
-          Serial1.print(" person found in room ");
-          Serial1.println(roomCount);
-          moveOutRoom();
-          //rotate back to starting position
-          left90();
-          break;
-      }
+        // signal to the user that a object was found.
+        if (personFound) {
+          buzzer.playNote(NOTE_E(3), 500, 15);
+          Serial1.println(" Person detected. ");
+          personCount += 1 ;
+        }
+        // display current totals
+        Serial1.print(personFound);
+        Serial1.print(" person found in room ");
+        Serial1.println(roomCount);
+        moveOutRoom();
+        //rotate back to starting position
+        left90();
+        break;
     }
   }
+}
 
-  void moveIntoRoom() {
-    countsLeft = encoders.getCountsAndResetLeft();
-    countsRight = encoders.getCountsAndResetRight();
-    delay(500);
-    motors.setSpeeds(100, 100);
-    Serial1.println(" Moving into room ");
-    do {
-      countsLeft = encoders.getCountsLeft();
-      countsRight = encoders.getCountsRight();
-    }  while (countsLeft < 1000 && countsRight < 1000);
-    motors.setSpeeds(0, 0);
-  }
+void moveIntoRoom() {
+  countsLeft = encoders.getCountsAndResetLeft();
+  countsRight = encoders.getCountsAndResetRight();
+  delay(500);
+  motors.setSpeeds(100, 100);
+  Serial1.println(" Moving into room ");
+  do {
+    countsLeft = encoders.getCountsLeft();
+    countsRight = encoders.getCountsRight();
+  }  while (countsLeft < 1000 && countsRight < 1000);
+  motors.setSpeeds(0, 0);
+}
 
-  void moveOutRoom() {
-    countsLeft = encoders.getCountsAndResetLeft();
-    countsRight = encoders.getCountsAndResetRight();
-    delay(1000);
-    motors.setSpeeds(-100, -100);
-    do {
-      countsLeft = encoders.getCountsLeft();
-      countsRight = encoders.getCountsRight();
-    }  while (countsLeft > -1000 && countsRight > -1000);
-    motors.setSpeeds(0, 0);
-  }
+void moveOutRoom() {
+  countsLeft = encoders.getCountsAndResetLeft();
+  countsRight = encoders.getCountsAndResetRight();
+  delay(1000);
+  motors.setSpeeds(-100, -100);
+  do {
+    countsLeft = encoders.getCountsLeft();
+    countsRight = encoders.getCountsRight();
+  }  while (countsLeft > -1000 && countsRight > -1000);
+  motors.setSpeeds(0, 0);
+}
 
-  void left90() {
-    delay(500);
-    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-    while ((int32_t)turnAngle < turnAngle45 * 2)
-    {
-      turnSensorUpdate();
-    }
-    motors.setSpeeds(0, 0);
-    turnSensorReset();
-    delay(500);
+void left90() {
+  delay(500);
+  motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+  while ((int32_t)turnAngle < turnAngle45 * 2)
+  {
+    turnSensorUpdate();
   }
+  motors.setSpeeds(0, 0);
+  turnSensorReset();
+  delay(500);
+}
 
-  void right90() {
-    delay(500);
-    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-    while ((int32_t)turnAngle > -turnAngle45 * 2)
-    {
-      turnSensorUpdate();
-    }
-    motors.setSpeeds(0, 0);
-    turnSensorReset();
-    delay(500);
+void right90() {
+  delay(500);
+  motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+  while ((int32_t)turnAngle > -turnAngle45 * 2)
+  {
+    turnSensorUpdate();
   }
+  motors.setSpeeds(0, 0);
+  turnSensorReset();
+  delay(500);
+}
 
-  void left45() {
-    delay(500);
-    motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
-    while ((int32_t)turnAngle < turnAngle45)
-    {
-      turnSensorUpdate();
-    }
-    motors.setSpeeds(0, 0);
-    turnSensorReset();
-    delay(500);
+void left45() {
+  delay(500);
+  motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
+  while ((int32_t)turnAngle < turnAngle45)
+  {
+    turnSensorUpdate();
   }
+  motors.setSpeeds(0, 0);
+  turnSensorReset();
+  delay(500);
+}
 
-  void right45() {
-    delay(500);
-    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
-    while ((int32_t)turnAngle > -turnAngle45)
-    {
-      turnSensorUpdate();
-    }
-    motors.setSpeeds(0, 0);
-    turnSensorReset();
-    delay(500);
+void right45() {
+  delay(500);
+  motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+  while ((int32_t)turnAngle > -turnAngle45)
+  {
+    turnSensorUpdate();
   }
+  motors.setSpeeds(0, 0);
+  turnSensorReset();
+  delay(500);
+}
 
-  void proximityScan() {
-    proxSensors.read();
-    if (proxSensors.countsFrontWithLeftLeds() >= 6
-        || proxSensors.countsFrontWithRightLeds() >= 6)
-    {
-      personFound = true;
-    }
+void proximityScan() {
+  proxSensors.read();
+  if (proxSensors.countsFrontWithLeftLeds() >= 6
+      || proxSensors.countsFrontWithRightLeds() >= 6)
+  {
+    personFound = true;
   }
+}
