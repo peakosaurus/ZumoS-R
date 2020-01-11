@@ -282,7 +282,7 @@ void stopped() {
 void atIntersection() {
   bool returningToJunction = false;
   reachedIntersection = true;
-  
+
   int input = ' ';
   if (!endOfCorridor) {
     Serial1.println("Left or Right?");
@@ -292,10 +292,14 @@ void atIntersection() {
   }
   while (input != 'z') {
     input = Serial1.read();
-    if (input == 'z') {
+    if (input == 'z' && !returningToJunction) {
       motors.setSpeeds(0, 0);
       Serial1.println(" Returning to Input Menu ");
       return;
+    }
+    else if (input == 'z' && returningToJunction) {
+      Serial1.println(" Area already searched! ");
+      buzzer.playNote(NOTE_G(4), 500, 15);
     }
 
     if ((input == 'l' && endOfCorridor == false) || (input == 'L' && endOfCorridor == false) ) {
@@ -312,7 +316,7 @@ void atIntersection() {
     }
 
     if (endOfCorridor) {
-      
+      returningToJunction = true;
       if (input == 'b' || input == 'B') {
         // combine pre room journey and post room journey to get distance to intersection
         int leftTotal = (junctionCountsLeft += junctionCountsLeft2);
@@ -340,6 +344,7 @@ void atIntersection() {
         junctionCountsRight = 0;
         junctionCountsLeft2 = 0;
         junctionCountsRight2 = 0;
+        reachedIntersection = false;
         return;
       }
     }
@@ -386,8 +391,8 @@ void searchRoom() {
           personCount += 1 ;
         }
         /* display if a person was found
-         * which room
-         * and where the room is situated
+           which room
+           and where the room is situated
         */
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
@@ -463,7 +468,7 @@ void calibrateSensors()
 }
 
 
-/*-------------------COMMON MOVEMENT FUNCTIONS-------------------- 
+/*-------------------COMMON MOVEMENT FUNCTIONS--------------------
   Movements that I use all the time, right angle turns, backing up from walls
   moving into rooms. etc.
 */
@@ -550,9 +555,9 @@ void right45() {
   turnSensorReset();
   delay(500);
 }
-/*-------------------SCAN FUNCTION-------------------- 
-VERY SIMPLE SCAN FUNCTION USED IN THE SUMO EXAMPLE.
-WORKS OK WILL NEED TO CHECK AGASINT FULL SIZE MAP.
+/*-------------------SCAN FUNCTION--------------------
+  VERY SIMPLE SCAN FUNCTION USED IN THE SUMO EXAMPLE.
+  WORKS OK WILL NEED TO CHECK AGASINT FULL SIZE MAP.
 */
 void proximityScan() {
   proxSensors.read();
