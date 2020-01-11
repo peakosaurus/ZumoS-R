@@ -5,7 +5,6 @@
 // uint32_t can represent any angle between 0 and 360.
 // this was taken from the Maze Solver example
 const int32_t gyroAngle45 = 0x20000000;
-
 //Serial1 communicates over XBee
 //Serial communicates over USB cable
 Zumo32U4Encoders encoders;
@@ -15,27 +14,41 @@ Zumo32U4LineSensors lineSensors;
 Zumo32U4ProximitySensors proxSensors; // taken from the sumo proximity example
 L3G gyro;
 
-int countsLeft = encoders.getCountsAndResetLeft();
-int countsRight = encoders.getCountsAndResetRight();
+// person found count, rooms searched, bool for indicating if someone was in a room and the location.
 int personCount = 0;
 int roomCount = 0;
 bool personFound = false;
 String roomPosition = " ";
+// flag for when we reach the t junction.
 bool reachedIntersection = false;
+// end of corridor flag.
 bool endOfCorridor = false;
 
+// counts from the T junction until the user stops (for a search).
 int junctionCountsLeft = 0;
 int junctionCountsRight = 0;
-//used for after searching a room
+
+// second counts for when the motors start again. These figures will be combined to the above, to give the distance to the T junction.
 int junctionCountsLeft2 = 0;
 int junctionCountsRight2 = 0;
 
+//Line Sensor Variables
 #define NUM_SENSORS 3
 unsigned int lineSensorValues[NUM_SENSORS];
+
+// Variables for keeping the zumo driving straight, source below.
+// used for keeping the motors in synch
+int countsLeft = encoders.getCountsAndResetLeft();
+int countsRight = encoders.getCountsAndResetRight();
 #define STRAIGHTFACTOR 1
 //Andrew Brown.
 //(February 25, 2017 ) Zumo 32U4 Synchronize Motor | A. Brown Design.
 //Retrieved January 06, 2020, from http://www.abrowndesign.com/2017/02/25/zumo-32u4-synchronize-motor/
+
+
+/*
+  description stuff
+*/
 
 void setup() {
   // put your setup code here, to run once:
@@ -55,9 +68,8 @@ void setup() {
   calibrateSensors();
 
 }
-
+/*------------------START OF INPUT MENU-------------------- */
 void loop() {
-  // put your main code here, to run repeatedly:
   // enter the main menu system
   getInput();
 }
@@ -88,7 +100,7 @@ void getInput() {
       searchRoom();
     }
 
-    ///////////// testing modes
+    /*-----------------DEBUGGING FEATURES----------------  */
     else if (cmd == '8') {
       motors.setSpeeds(0, 0);
       Serial1.println (" Scan Mode ");
@@ -109,39 +121,9 @@ void getInput() {
     }
   }
 }
-// taken from the line follower example
-void calibrateSensors()
-{
-  // Play audible countdown.
-  for (int i = 0; i < 3; i++)
-  {
-    delay(1000);
-    ledYellow(1);
-    //    buzzer.playNote(NOTE_G(3), 500, 15);
-  }
+/*--------------------END OF INPUT MENU-------------------- */
 
-  delay(1000);
-  ledGreen(1);
-  ledYellow(0);
-  //  buzzer.playNote(NOTE_G(4), 500, 15);
-  delay(1000);
-  ledGreen(0);
-  for (uint16_t i = 0; i < 120; i++)
-  {
-    if (i > 30 && i <= 90)
-    {
-      motors.setSpeeds(-200, 200);
-    }
-    else
-    {
-      motors.setSpeeds(200, -200);
-    }
-    lineSensors.calibrate();
-  }
-  motors.setSpeeds(0, 0);
-  return;
-}
-
+/*--------------------MANUAL CONTROL-------------------- */
 void manualMode() {
   motors.setSpeeds(0, 0);
   int zumoMovement = ' ';
@@ -152,14 +134,16 @@ void manualMode() {
       getInput();
     }
     switch (zumoMovement) {
-      case 'w': case 'W': motors.setSpeeds(200, 200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
-      case 's': case 'S': motors.setSpeeds(-200, -200); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
+      case 'w': case 'W': motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
+      case 's': case 'S': motors.setSpeeds(-FORWARD_SPEED, -FORWARD_SPEED); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
       case 'a': case 'A': motors.setSpeeds(-TURN_SPEED, TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
       case 'd': case 'D': motors.setSpeeds(TURN_SPEED, -TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
       case 'q': case'Q': motors.setLeftSpeed(0); motors.setRightSpeed(0); Serial1.println(" Stopping "); break;
     }
   }
 }
+
+/*--------------------AUTOMATIC MODE AKA LINE DETECT-------------------- */
 
 void lineDetect() {
   int currentSpeedLeft = FORWARD_SPEED;
@@ -248,6 +232,7 @@ void lineDetect() {
   }
 }
 
+/*--------------------OPTIONS FOR WHEN THE ZUMO HAS STOPPED-------------------- */
 void stopped() {
   int input = ' ';
   Serial1.println("Stopped At Wall");
@@ -265,20 +250,17 @@ void stopped() {
       endOfCorridor = true;
       junctionCountsLeft2 = encoders.getCountsLeft();
       junctionCountsRight2 = encoders.getCountsRight();
+      Serial1.println(" At end of corridor return to intersection ");
+      atIntersection();
       return;
     };
     switch (input) {
       case 'l': case 'L':
-        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-        delay(REVERSE_DURATION);
-        motors.setSpeeds(0, 0);
-        Serial1.println(" Turning Left ");
+        backUp();
         left90();
         break;
       case 'r': case 'R':
-        motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-        delay(REVERSE_DURATION);
-        motors.setSpeeds(0, 0);
+        backUp();
         right90();
         break;
       case 'c': case 'C':
@@ -291,15 +273,23 @@ void stopped() {
         Serial1.println(" At T Junction ");
         atIntersection();
         return;
+        break;
     }
   }
 }
+
+/*--------------------USER AT T JUNCTION-------------------- */
 void atIntersection() {
+  bool returningToJunction = false;
   reachedIntersection = true;
-
+  
   int input = ' ';
-  Serial1.println("Left or Right?");
-
+  if (!endOfCorridor) {
+    Serial1.println("Left or Right?");
+  }
+  else {
+    Serial1.println("Press B to return to junction, ");
+  }
   while (input != 'z') {
     input = Serial1.read();
     if (input == 'z') {
@@ -309,46 +299,33 @@ void atIntersection() {
     }
 
     if ((input == 'l' && endOfCorridor == false) || (input == 'L' && endOfCorridor == false) ) {
-      Serial1.println(" Turning Left ");
-      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-      delay(REVERSE_DURATION);
-      motors.setSpeeds(0, 0);
+      backUp();
       left90();
       lineDetect();
+      return;
     }
     else if ((input == 'r' && endOfCorridor == false) || (input == 'R' && endOfCorridor == false)) {
-      Serial1.println(" Turning Right ");
-      motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
-      delay(REVERSE_DURATION);
-      motors.setSpeeds(0, 0);
+      backUp();
       right90();
       lineDetect();
+      return;
     }
 
     if (endOfCorridor) {
-      Serial1.println(" At end of corridor return to intersection ");
+      
       if (input == 'b' || input == 'B') {
         // combine pre room journey and post room journey to get distance to intersection
-        Serial1.println (junctionCountsLeft);
-        Serial1.println (junctionCountsRight);
-        Serial1.println (junctionCountsLeft2);
-        Serial1.println (junctionCountsRight2);
-
         int leftTotal = (junctionCountsLeft += junctionCountsLeft2);
         int rightTotal = (junctionCountsRight += junctionCountsRight2);
-
-        Serial1.println (leftTotal);
-        Serial1.println (rightTotal);
-
-        //rotate 180
+        // rotate 180
         right90();
         right90();
-        delay(1000);
-        Serial1.println("Calculating return journey");
+        delay(500);
+        // Serial1.println("Calculating return journey");
         countsLeft = encoders.getCountsAndResetLeft();
         countsRight = encoders.getCountsAndResetRight();
-        delay(1000);
-        motors.setSpeeds(200, 200);
+        delay(500);
+        motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
         do {
           countsLeft = encoders.getCountsLeft();
           countsRight = encoders.getCountsRight();
@@ -369,8 +346,8 @@ void atIntersection() {
   }
 }
 
+/*--------------------SEARCH ROOM-------------------- */
 void searchRoom() {
-
   int input = ' ';
   roomCount ++;
   delay(1000);
@@ -387,7 +364,6 @@ void searchRoom() {
       case 'l' : case 'L' :
         personFound = false;
         roomPosition = "left";
-        Serial1.println(" Turning Left ");
         left90();
         moveIntoRoom();
         //rotate 45° to the Right and scan
@@ -409,7 +385,10 @@ void searchRoom() {
           Serial1.println(" Person detected. ");
           personCount += 1 ;
         }
-        // display current totals
+        /* display if a person was found
+         * which room
+         * and where the room is situated
+        */
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
         Serial1.print(roomCount);
@@ -421,7 +400,6 @@ void searchRoom() {
         personFound = false;
         roomPosition = "right";
         //rotate 90° to face the room
-        Serial1.println(" Turning Right ");
         right90();
         moveIntoRoom();
         left45();
@@ -449,6 +427,51 @@ void searchRoom() {
         break;
     }
   }
+}
+/*-------------------CALLIBRATE LINE SENSORS-------------------- */
+// taken from the line follower example
+void calibrateSensors()
+{
+  // Play audible countdown.
+  for (int i = 0; i < 3; i++)
+  {
+    delay(1000);
+    ledYellow(1);
+    buzzer.playNote(NOTE_G(3), 500, 15);
+  }
+
+  delay(1000);
+  ledGreen(1);
+  ledYellow(0);
+  buzzer.playNote(NOTE_G(4), 500, 15);
+  delay(1000);
+  ledGreen(0);
+  for (uint16_t i = 0; i < 120; i++)
+  {
+    if (i > 30 && i <= 90)
+    {
+      motors.setSpeeds(-200, 200);
+    }
+    else
+    {
+      motors.setSpeeds(200, -200);
+    }
+    lineSensors.calibrate();
+  }
+  motors.setSpeeds(0, 0);
+  return;
+}
+
+
+/*-------------------COMMON MOVEMENT FUNCTIONS-------------------- 
+  Movements that I use all the time, right angle turns, backing up from walls
+  moving into rooms. etc.
+*/
+
+void backUp() {
+  motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+  delay(REVERSE_DURATION);
+  motors.setSpeeds(0, 0);
 }
 
 void moveIntoRoom() {
@@ -477,6 +500,7 @@ void moveOutRoom() {
 }
 
 void left90() {
+  Serial1.println(" Turning Left ");
   delay(500);
   motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
   while ((int32_t)turnAngle < turnAngle45 * 2)
@@ -489,6 +513,7 @@ void left90() {
 }
 
 void right90() {
+  Serial1.println(" Turning Right ");
   delay(500);
   motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
   while ((int32_t)turnAngle > -turnAngle45 * 2)
@@ -501,6 +526,7 @@ void right90() {
 }
 
 void left45() {
+  Serial1.println(" Turning Left ");
   delay(500);
   motors.setSpeeds(-TURN_SPEED, TURN_SPEED);
   while ((int32_t)turnAngle < turnAngle45)
@@ -513,6 +539,7 @@ void left45() {
 }
 
 void right45() {
+  Serial1.println(" Turning Right ");
   delay(500);
   motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
   while ((int32_t)turnAngle > -turnAngle45)
@@ -523,7 +550,10 @@ void right45() {
   turnSensorReset();
   delay(500);
 }
-
+/*-------------------SCAN FUNCTION-------------------- 
+VERY SIMPLE SCAN FUNCTION USED IN THE SUMO EXAMPLE.
+WORKS OK WILL NEED TO CHECK AGASINT FULL SIZE MAP.
+*/
 void proximityScan() {
   proxSensors.read();
   if (proxSensors.countsFrontWithLeftLeds() >= 6
@@ -533,6 +563,7 @@ void proximityScan() {
   }
 }
 
+/*-------------------DEBUGGING FUNCTION--------------------*/
 void variablePrint() {
   Serial1.print(" Persons found = ");
   Serial1.println(personCount);
