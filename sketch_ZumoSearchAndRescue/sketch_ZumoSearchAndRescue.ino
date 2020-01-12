@@ -397,7 +397,7 @@ void searchRoom() {
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
         Serial1.print(roomCount);
-        Serial1.println (" on the ");
+        Serial1.print (" on the ");
         Serial1.print (roomPosition);
 
         break;
@@ -424,7 +424,7 @@ void searchRoom() {
         Serial1.print(personFound);
         Serial1.print(" person found in room ");
         Serial1.print(roomCount);
-        Serial1.println (" on the ");
+        Serial1.print (" on the ");
         Serial1.print (roomPosition);
         moveOutRoom();
         //rotate back to starting position
