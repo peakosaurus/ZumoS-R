@@ -134,10 +134,10 @@ void manualMode() {
       getInput();
     }
     switch (zumoMovement) {
-      case 'w': case 'W': motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
-      case 's': case 'S': motors.setSpeeds(-FORWARD_SPEED, -FORWARD_SPEED); delay(MOVEMENT_TIME * 5); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
-      case 'a': case 'A': motors.setSpeeds(-TURN_SPEED, TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
-      case 'd': case 'D': motors.setSpeeds(TURN_SPEED, -TURN_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
+      case 'w': case 'W': motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Moving forward "); break;
+      case 's': case 'S': motors.setSpeeds(-FORWARD_SPEED, -FORWARD_SPEED); delay(MOVEMENT_TIME); motors.setSpeeds(0, 0); Serial1.println(" Moving backwards ");  break;
+      case 'a': case 'A': motors.setSpeeds(-TURN_SPEED, TURN_SPEED); delay(TURN_DURATION); motors.setSpeeds(0, 0); Serial1.println(" Turning Left "); break;
+      case 'd': case 'D': motors.setSpeeds(TURN_SPEED, -TURN_SPEED); delay(TURN_DURATION); motors.setSpeeds(0, 0); Serial1.println(" Turning Right "); break;
       case 'q': case'Q': motors.setLeftSpeed(0); motors.setRightSpeed(0); Serial1.println(" Stopping "); break;
     }
   }
@@ -442,13 +442,13 @@ void calibrateSensors()
   {
     delay(1000);
     ledYellow(1);
-    buzzer.playNote(NOTE_G(3), 500, 15);
+//    buzzer.playNote(NOTE_G(3), 500, 15);
   }
 
   delay(1000);
   ledGreen(1);
   ledYellow(0);
-  buzzer.playNote(NOTE_G(4), 500, 15);
+//  buzzer.playNote(NOTE_G(4), 500, 15);
   delay(1000);
   ledGreen(0);
   for (uint16_t i = 0; i < 120; i++)
